@@ -1,0 +1,19 @@
+equeue emulator usage
+---------------------
+- execute the included RUN script to start a pseudoterminal pair and connect the
+  emulator to one end.
+- then make sure your program connects to the pseudoterminal /tmp/ttyeqemu.
+
+For testing you can run minicom thus: minicom -D /tmp/ttyeqemu
+
+
+build instructions
+------------------
+dependencies:
+- OpenGL
+- GLEW
+- libpng
+- libjpeg
+- zlib
+
+After installing all necessary depdencies, just type make.

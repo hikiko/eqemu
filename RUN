@@ -1,0 +1,13 @@
+#!/bin/sh
+
+socat PTY,link=emuport PTY,link=/tmp/ttyeqemu &
+if [ $? != 0 ]; then
+	echo "failed to create PTY pair" >&2
+	exit 1
+fi
+
+echo 'starting equeue system emulator. connect to the /tmp/ttyeqemu fake serial port'
+
+./eqemu emuport
+
+kill %1		# kill socat
