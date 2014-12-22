@@ -20,7 +20,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <string.h>
 #include <errno.h>
 #include <signal.h>
+#include <time.h>
 #include <limits.h>
+#include <vector>
 #include <string>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -30,12 +32,22 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "dev.h"
 #include "timer.h"
 
+struct CustStat {
+	int id;
+	time_t start, end;
+};
+
+#define TMHIST_SIZE		16
+
 void post_redisplay();	// defined in main.cc
 
 int customer, ticket;
 static int report_inputs, cmd_echo;
 static long last_ticket_msec = LONG_MIN;
 
+static std::vector<CustStat> cstat;
+
+time_t calc_avg_wait();
 static void runcmd(const char *cmd);
 
 static int fd = -1;
@@ -123,6 +135,14 @@ void issue_ticket()
 {
 	ticket++;
 	last_ticket_msec = get_msec();
+
+	CustStat st;
+	st.id = ticket;
+	st.start = time(0);
+	st.end = (time_t)-1;
+	cstat.push_back(st);
+
+
 	if(report_inputs) {
 		fprintf(fp, "ticket: %d\n", ticket);
 	}
@@ -135,12 +155,37 @@ void next_customer()
 	if(customer < ticket) {
 		customer++;
 		last_ticket_msec = LONG_MIN;
+
+		for(size_t i=0; i<cstat.size(); i++) {
+			if(cstat[i].id == customer) {
+				cstat[i].end = time(0);
+				fprintf(stderr, "start/end/interval: %lu %lu %lu\n", cstat[i].start,
+						cstat[i].end, cstat[i].end - cstat[i].start);
+				break;
+			}
+		}
+
 		if(report_inputs) {
 			fprintf(fp, "customer: %d\n", customer);
 		}
 
 		post_redisplay();
 	}
+}
+
+time_t calc_avg_wait()
+{
+	int count = 0;
+	time_t sum = 0;
+
+	for(size_t i=0; i<cstat.size(); i++) {
+		if(cstat[i].end != (time_t)-1) {
+			sum += cstat[i].end - cstat[i].start;
+			count++;
+		}
+	}
+
+	return count ? sum / count : 0;
 }
 
 #define TICKET_SHOW_DUR		1000
@@ -207,9 +252,14 @@ static void runcmd(const char *cmd)
 		next_customer();
 		break;
 
+	case 'a':
+		fprintf(fp, "OK,avg wait time: %lu\r\n", (unsigned long)calc_avg_wait());
+		break;
+
 	case 'h':
 		fprintf(fp, "OK,commands: (e)cho, (v)ersion, (t)icket, (c)ustomer, "
-				"(n)ext, (q)ueue, (r)eset, (i)nput-reports, (h)elp.\n");
+				"(n)ext, (q)ueue, (a)verage wait time, (r)eset, (i)nput-reports, "
+				"(h)elp.\n");
 		break;
 
 	default:
